@@ -53,10 +53,11 @@ class BatchNormPoint(nn.Module):
             x = self.bn(x)
         return x.view(s1, s2, s3)
 
-def load_clip_to_cpu(cfg):
-    backbone_name = cfg.MODEL.BACKBONE.NAME
-    url = clip._MODELS[backbone_name]
-    model_path = clip._download(url)
+def load_clip_to_cpu(cfg, model_path="clip/pretrained_weights/RN101.pt"):
+    if model_path is None:
+        backbone_name = cfg.MODEL.BACKBONE.NAME
+        url = clip._MODELS[backbone_name]
+        model_path = clip._download(url)
     
     try:
         # loading JIT archive

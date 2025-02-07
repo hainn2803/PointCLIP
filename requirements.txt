@@ -11,3 +11,4 @@ ftfy
 regex
 tqdm
 h5py
+requests

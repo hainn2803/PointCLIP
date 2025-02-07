@@ -21,14 +21,14 @@ Create a conda environment and install dependencies:
 git clone https://github.com/ZrrSkywalker/PointCLIP.git
 cd PointCLIP
 
-conda create -n pointclip python=3.7
-conda activate pointclip
+conda create -n pc python=3.7
+conda activate pc
 
 pip install -r requirements.txt
 
 # Install the according versions of torch and torchvision
-conda install pytorch torchvision cudatoolkit
-
+conda install pytorch torchvision torchaudio cudatoolkit=11.0 -c pytorch
+conda install pytorch==1.7.0 torchvision==0.8.0 torchaudio==0.7.0 cudatoolkit=11.0 -c pytorch
 # Install the modified dassl library (no need to re-build if the source code is changed)
 cd Dassl3D/
 python setup.py develop
