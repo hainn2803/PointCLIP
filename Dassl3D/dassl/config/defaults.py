@@ -61,6 +61,7 @@ _C.INPUT.GB_K = 21 # kernel size (should be an odd number)
 ###########################
 _C.DATASET = CN()
 # Directory where datasets are stored
+_C.DATASET.NUM_CLASSES = 0
 _C.DATASET.ROOT = ''
 _C.DATASET.NAME = ''
 # List of names of source domains

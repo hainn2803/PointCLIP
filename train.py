@@ -48,8 +48,8 @@ def reset_cfg(cfg, args):
     if args.num_shots:
         cfg.DATASET.NUM_SHOTS = args.num_shots
 
-    if args.num_classes:
-        cfg.DATASET.NUM_CLASSES = args.num_classes
+    if args.num_prompts:
+        cfg.TRAINER.PLOT.NUM_PROMPTS = args.num_prompts
 
 
 def extend_cfg(cfg):
@@ -70,7 +70,6 @@ def extend_cfg(cfg):
     cfg.TRAINER.PLOT.CTX_INIT = ""  # initialization words
     cfg.TRAINER.PLOT.PREC = "fp16"  # fp16, fp32, amp
     cfg.TRAINER.PLOT.CLASS_TOKEN_POSITION = "end"  # 'middle' or 'end' or 'front'
-    cfg.TRAINER.PLOT.N = 4 # the number of prompts
 
 
 def setup_cfg(args):
@@ -192,7 +191,7 @@ if __name__ == '__main__':
         '--num-shots', default=0, type=int, help='shot numbers for few-shot classification'
     )
     parser.add_argument(
-        '--num-classes', default=40, type=int, help='number of classes'
+        '--num_prompts', default=1, type=int, help='number of textual prompts'
     )
     parser.add_argument(
         '--model-dir',

@@ -132,7 +132,7 @@ class PromptLearner(nn.Module):
         ctx_dim = clip_model.ln_final.weight.shape[0]
         clip_imsize = clip_model.visual.input_resolution
         cfg_imsize = cfg.INPUT.SIZE[0]
-        self.N = cfg.TRAINER.PLOT.N
+        self.num_prompts = cfg.TRAINER.PLOT.NUM_PROMPTS
         assert cfg_imsize == clip_imsize, f"cfg_imsize ({cfg_imsize}) must equal to clip_imsize ({clip_imsize})"
 
         if ctx_init:
@@ -152,7 +152,7 @@ class PromptLearner(nn.Module):
                 ctx_vectors = torch.empty(n_cls, n_ctx, ctx_dim, dtype=dtype)
             else:
                 print("Initializing a generic context")
-                ctx_vectors = torch.empty(self.N, n_ctx, ctx_dim, dtype=dtype) 
+                ctx_vectors = torch.empty(self.num_prompts, n_ctx, ctx_dim, dtype=dtype) 
             nn.init.normal_(ctx_vectors, std=0.02)   # define the prompt to be trained
             prompt_prefix = " ".join(["X"] * n_ctx)    
 
@@ -167,7 +167,7 @@ class PromptLearner(nn.Module):
         prompts = [prompt_prefix + " " + name + "." for name in classnames]
 
         tokenized_prompts = torch.cat([clip.tokenize(p) for p in prompts]) # shape == (n_cls, ?)
-        tokenized_prompts = tokenized_prompts.repeat(self.N, 1)  # shape == (n_cls * self.N, ?)
+        tokenized_prompts = tokenized_prompts.repeat(self.num_prompts, 1)  # shape == (n_cls * self.num_prompts, ?)
         # tokenized_prompts3.view(3,100,77)
 
         with torch.no_grad():
@@ -189,12 +189,12 @@ class PromptLearner(nn.Module):
 
     def forward(self):
        
-        ctx = self.ctx # shape == (self.N, n_ctx, ctx_dim)
+        ctx = self.ctx # shape == (self.num_prompts, n_ctx, ctx_dim)
         if ctx.dim() == 3:
             ctx = ctx.unsqueeze(0).expand(self.n_cls, -1, -1,-1) 
-        # ctx.shape == (self.n_cls, self.N, n_ctx, ctx_dim)
-        ctx = ctx.permute(1, 0, 2, 3) # ctx.shape == (self.N, self.n_cls, n_ctx, ctx_dim)
-        ctx = ctx.contiguous().view(self.N*self.n_cls,self.n_ctx,ctx.shape[3])
+        # ctx.shape == (self.n_cls, self.num_prompts, n_ctx, ctx_dim)
+        ctx = ctx.permute(1, 0, 2, 3) # ctx.shape == (self.num_prompts, self.n_cls, n_ctx, ctx_dim)
+        ctx = ctx.contiguous().view(self.num_prompts*self.n_cls,self.n_ctx,ctx.shape[3])
 
         prefix = self.token_prefix # tokenized_prompts
         suffix = self.token_suffix
@@ -202,9 +202,9 @@ class PromptLearner(nn.Module):
         if self.class_token_position == "end":
             prompts = torch.cat(
                 [
-                    prefix,  # (self.N*self.n_cls, 1, dim)
-                    ctx,     # (self.N*self.n_cls, n_ctx, dim)
-                    suffix,  # (self.N*self.n_cls, *, dim)
+                    prefix,  # (self.num_prompts*self.n_cls, 1, dim)
+                    ctx,     # (self.num_prompts*self.n_cls, n_ctx, dim)
+                    suffix,  # (self.num_prompts*self.n_cls, *, dim)
                 ],
                 dim=1,
             )
@@ -288,7 +288,7 @@ class PointCLIP_Model(nn.Module):
         self.feat_store = []
         self.label_store = []
 
-        self.N = cfg.TRAINER.PLOT.N
+        self.num_prompts = cfg.TRAINER.PLOT.NUM_PROMPTS
         self.num_classes = cfg.DATASET.NUM_CLASSES
         self.tokenized_prompts = self.prompt_learner.tokenized_prompts
         self.in_features = cfg.MODEL.BACKBONE.CHANNEL
@@ -312,8 +312,8 @@ class PointCLIP_Model(nn.Module):
         prompts = self.prompt_learner() # torch.Size([160, 77, 512])
         tokenized_prompts = self.tokenized_prompts # torch.Size([160, 77])
         text_feat = self.text_encoder(prompts, tokenized_prompts) # torch.Size([160, 512])
-        text_feat = text_feat.contiguous().view(self.N, self.num_classes, self.in_features)
-        text_feat = text_feat.permute(1, 0, 2) # shape == (num_classes, N, 512)
+        text_feat = text_feat.contiguous().view(self.num_prompts, self.num_classes, self.in_features)
+        text_feat = text_feat.permute(1, 0, 2) # shape == (num_classes, num_prompts, 512)
         text_feat = text_feat / text_feat.norm(dim=-1, keepdim=True)
 
         # print(image_feat.shape, text_feat.shape) # torch.Size([32, 10, 512]) torch.Size([40, 4, 512])
@@ -323,7 +323,7 @@ class PointCLIP_Model(nn.Module):
         # print(f"caccc {logits.shape}")
 
         sim = torch.matmul(image_feat.reshape(-1, self.in_features), text_feat.reshape(-1, self.in_features).permute(1, 0))
-        sim = sim.reshape(image_feat.shape[0], self.num_classes, self.num_views, self.N)
+        sim = sim.reshape(image_feat.shape[0], self.num_classes, self.num_views, self.num_prompts)
 
         # sim_hat = torch.einsum('bvd,cnd->bcvn', image_feat, text_feat).contiguous()
 
@@ -341,22 +341,22 @@ class PointCLIP_Model(nn.Module):
 def compute_logits(image_feat, text_feat, logit_scale, eps=0.01, max_iter=1000):
     """
         image_feat.shape == (batch_size, num_views, dims)
-        text_feat.shape == (num_classes, N, dims)
+        text_feat.shape == (num_classes, num_prompts, dims)
     """
     batch_size = image_feat.shape[0]
     num_views = image_feat.shape[1]
     dims = image_feat.shape[2]
     num_classes = text_feat.shape[0]
-    N = text_feat.shape[1]
-    sim = torch.einsum('bvd,cnd->bcvn', image_feat, text_feat).contiguous() # shape == (batch_size, num_classes, num_views, N)
-    sim = sim.view(batch_size * num_classes, num_views, N)
+    num_prompts = text_feat.shape[1]
+    sim = torch.einsum('bvd,cnd->bcvn', image_feat, text_feat).contiguous() # shape == (batch_size, num_classes, num_views, num_prompts)
+    sim = sim.view(batch_size * num_classes, num_views, num_prompts)
     wdist = 1.0 - sim
 
     p = torch.zeros(batch_size * num_classes, num_views, dtype=wdist.dtype, device=wdist.device).fill_(1. / num_views)
-    q = torch.zeros(batch_size * num_classes, N, dtype=wdist.dtype, device=wdist.device).fill_(1. / N)
+    q = torch.zeros(batch_size * num_classes, num_prompts, dtype=wdist.dtype, device=wdist.device).fill_(1. / num_prompts)
     sinkhorn_solver = SinkhornAlgorithm(epsilon=eps, iterations=max_iter)
     with torch.no_grad():
-        T = sinkhorn_solver(p, q, wdist) # shape == (batch_size * num_classes, num_views, N)
+        T = sinkhorn_solver(p, q, wdist) # shape == (batch_size * num_classes, num_views, num_prompts)
 
     sim_op = torch.sum(T * wdist, dim=(1, 2))  # change here
     sim_op = sim_op.contiguous().view(batch_size, num_classes)
