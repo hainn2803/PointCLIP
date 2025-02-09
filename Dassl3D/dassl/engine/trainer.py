@@ -317,7 +317,7 @@ class SimpleTrainer(TrainerBase):
 
         # Save as attributes some frequently used variables
         self.start_epoch = self.epoch = 0
-        self.max_epoch = cfg.OPTIM.MAX_EPOCH
+        self.max_epoch = cfg.OPTIM.ADAPTER.MAX_EPOCH
         self.output_dir = cfg.OUTPUT_DIR
 
         self.cfg = cfg
@@ -646,7 +646,8 @@ class TrainerX(SimpleTrainer):
                     'data {data_time.val:.3f} ({data_time.avg:.3f})\t'
                     'eta {eta}\t'
                     '{losses}\t'
-                    'lr {lr:.6e}'.format(
+                    'lr adapter {lr_adapter:.6e} \t'
+                    'lr prompt {lr_prompt:.6e}'.format(
                         self.epoch + 1,
                         self.max_epoch,
                         self.batch_idx + 1,
@@ -655,7 +656,8 @@ class TrainerX(SimpleTrainer):
                         data_time=data_time,
                         eta=eta,
                         losses=losses,
-                        lr=self.get_current_lr()
+                        lr_adapter=self.get_current_lr(names="adapter"),
+                        lr_prompt=self.get_current_lr(names="prompt_learner")
                     )
                 )
 

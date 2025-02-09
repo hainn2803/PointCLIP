@@ -19,4 +19,4 @@ python train.py \
 --output-dir output/${TRAINER}/${CFG}/${DATASET} \
 --no-train \
 --zero-shot \
-# --post-search
+--post-search

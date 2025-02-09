@@ -155,39 +155,82 @@ _C.MODEL.HEAD.DROPOUT = 0.
 # Optimization
 ###########################
 _C.OPTIM = CN()
-_C.OPTIM.NAME = 'adam'
-_C.OPTIM.LR = 0.0003
-_C.OPTIM.WEIGHT_DECAY = 5e-4
-_C.OPTIM.MOMENTUM = 0.9
-_C.OPTIM.SGD_DAMPNING = 0
-_C.OPTIM.SGD_NESTEROV = False
-_C.OPTIM.RMSPROP_ALPHA = 0.99
-_C.OPTIM.ADAM_BETA1 = 0.9
-_C.OPTIM.ADAM_BETA2 = 0.999
+_C.OPTIM.ADAPTER = CN()
+_C.OPTIM.ADAPTER.NAME = 'adam'
+_C.OPTIM.ADAPTER.LR = 0.0003
+_C.OPTIM.ADAPTER.WEIGHT_DECAY = 5e-4
+_C.OPTIM.ADAPTER.MOMENTUM = 0.9
+_C.OPTIM.ADAPTER.SGD_DAMPNING = 0
+_C.OPTIM.ADAPTER.SGD_NESTEROV = False
+_C.OPTIM.ADAPTER.RMSPROP_ALPHA = 0.99
+_C.OPTIM.ADAPTER.ADAM_BETA1 = 0.9
+_C.OPTIM.ADAPTER.ADAM_BETA2 = 0.999
 # STAGED_LR allows different layers to have
 # different lr, e.g. pre-trained base layers
 # can be assigned a smaller lr than the new
 # classification layer
-_C.OPTIM.STAGED_LR = False
-_C.OPTIM.NEW_LAYERS = ()
-_C.OPTIM.BASE_LR_MULT = 0.1
+_C.OPTIM.ADAPTER.STAGED_LR = False
+_C.OPTIM.ADAPTER.NEW_LAYERS = ()
+_C.OPTIM.ADAPTER.BASE_LR_MULT = 0.1
 # Learning rate scheduler
-_C.OPTIM.LR_SCHEDULER = 'single_step'
+_C.OPTIM.ADAPTER.LR_SCHEDULER = 'single_step'
 # -1 or 0 means the stepsize is equal to max_epoch
-_C.OPTIM.STEPSIZE = (-1, )
-_C.OPTIM.GAMMA = 0.1
-_C.OPTIM.MAX_EPOCH = 10
+_C.OPTIM.ADAPTER.STEPSIZE = (-1, )
+_C.OPTIM.ADAPTER.GAMMA = 0.1
+_C.OPTIM.ADAPTER.MAX_EPOCH = 10
 # Set WARMUP_EPOCH larger than 0 to activate warmup training
-_C.OPTIM.WARMUP_EPOCH = -1
+_C.OPTIM.ADAPTER.WARMUP_EPOCH = -1
 # Either linear or constant
-_C.OPTIM.WARMUP_TYPE = 'linear'
+_C.OPTIM.ADAPTER.WARMUP_TYPE = 'linear'
 # Constant learning rate when type=constant
-_C.OPTIM.WARMUP_CONS_LR = 1e-5
+_C.OPTIM.ADAPTER.WARMUP_CONS_LR = 1e-5
 # Minimum learning rate when type=linear
-_C.OPTIM.WARMUP_MIN_LR = 1e-5
+_C.OPTIM.ADAPTER.WARMUP_MIN_LR = 1e-5
 # Recount epoch for the next scheduler (last_epoch=-1)
 # Otherwise last_epoch=warmup_epoch
-_C.OPTIM.WARMUP_RECOUNT = True
+_C.OPTIM.ADAPTER.WARMUP_RECOUNT = True
+
+
+
+###########################
+# Optimization
+###########################
+_C.OPTIM.PROMPT = CN()
+_C.OPTIM.PROMPT.NAME = 'adam'
+_C.OPTIM.PROMPT.LR = 0.0003
+_C.OPTIM.PROMPT.WEIGHT_DECAY = 5e-4
+_C.OPTIM.PROMPT.MOMENTUM = 0.9
+_C.OPTIM.PROMPT.SGD_DAMPNING = 0
+_C.OPTIM.PROMPT.SGD_NESTEROV = False
+_C.OPTIM.PROMPT.RMSPROP_ALPHA = 0.99
+_C.OPTIM.PROMPT.ADAM_BETA1 = 0.9
+_C.OPTIM.PROMPT.ADAM_BETA2 = 0.999
+# STAGED_LR allows different layers to have
+# different lr, e.g. pre-trained base layers
+# can be assigned a smaller lr than the new
+# classification layer
+_C.OPTIM.PROMPT.STAGED_LR = False
+_C.OPTIM.PROMPT.NEW_LAYERS = ()
+_C.OPTIM.PROMPT.BASE_LR_MULT = 0.1
+# Learning rate scheduler
+_C.OPTIM.PROMPT.LR_SCHEDULER = 'single_step'
+# -1 or 0 means the stepsize is equal to max_epoch
+_C.OPTIM.PROMPT.STEPSIZE = (-1, )
+_C.OPTIM.PROMPT.GAMMA = 0.1
+_C.OPTIM.PROMPT.MAX_EPOCH = 10
+# Set WARMUP_EPOCH larger than 0 to activate warmup training
+_C.OPTIM.PROMPT.WARMUP_EPOCH = -1
+# Either linear or constant
+_C.OPTIM.PROMPT.WARMUP_TYPE = 'linear'
+# Constant learning rate when type=constant
+_C.OPTIM.PROMPT.WARMUP_CONS_LR = 1e-5
+# Minimum learning rate when type=linear
+_C.OPTIM.PROMPT.WARMUP_MIN_LR = 1e-5
+# Recount epoch for the next scheduler (last_epoch=-1)
+# Otherwise last_epoch=warmup_epoch
+_C.OPTIM.PROMPT.WARMUP_RECOUNT = True
+
+
 
 ###########################
 # Train
