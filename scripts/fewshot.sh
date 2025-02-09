@@ -10,15 +10,22 @@ TRAINER=PointCLIP_FS
 # Trainer configs: rn50, rn101, vit_b32 or vit_b16
 CFG=rn101
 
+CTP=end  # class token position (end or middle)
+NCTX=16  # number of context tokens
+# SHOTS=$5  # number of shots (1, 2, 4, 8, 16)
+CSC=False  # class-specific context (False or True)
+NUM_PROMPTS=1  # number of proxy
+
 # Shot number
 NUM_SHOTS=16
 
-export CUDA_VISIBLE_DEVICES=0
+export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
 python train.py \
 --root ${DATA} \
 --trainer ${TRAINER} \
 --num-shots ${NUM_SHOTS} \
 --dataset-config-file configs/datasets/${DATASET}.yaml \
 --config-file configs/trainers/${TRAINER}/${CFG}.yaml \
---output-dir output/${TRAINER}/${CFG}/${DATASET} \
-# --post-search
+--output-dir output/NUM_SHOTS_{${NUM_SHOTS}}/NUM_PROMPTS_{${NUM_PROMPTS}}/learnable_prompt_adapter/${TRAINER}/${CFG}/${DATASET} \
+--num-prompts ${NUM_PROMPTS} \
+--post-search

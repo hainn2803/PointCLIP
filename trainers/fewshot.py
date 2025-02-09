@@ -12,6 +12,10 @@ from dassl.optim import build_optimizer, build_lr_scheduler
 from clip import clip
 from trainers.mv_utils_fs import PCViews
 
+from trainers.sinkhorn import SinkhornAlgorithm
+
+from clip.simple_tokenizer import SimpleTokenizer as _Tokenizer
+_tokenizer = _Tokenizer()
 
 
 CUSTOM_TEMPLATES = {
@@ -71,7 +75,10 @@ def load_clip_to_cpu(cfg, model_path="clip/pretrained_weights/RN101.pt"):
 
     return model
 
-       
+
+
+
+
 class Textual_Encoder(nn.Module):
 
     def __init__(self, cfg, classnames, clip_model):
@@ -83,11 +90,176 @@ class Textual_Encoder(nn.Module):
     
     def forward(self):
         temp = CUSTOM_TEMPLATES[self.cfg.DATASET.NAME]
-        prompts = [temp.format(c.replace('_', ' ')) for c in self.classnames]
-        prompts = torch.cat([clip.tokenize(p) for p in prompts])
+        prompts = [temp.format(c.replace('_', ' ')) for c in self.classnames] # len(prompts) == NUM_CLASSES
+        prompts = torch.cat([clip.tokenize(p) for p in prompts]) # shape == torch.Size([NUM_CLASSES, 77])
         prompts = prompts.cuda()
-        text_feat = self.clip_model.encode_text(prompts).repeat(1, self.cfg.MODEL.PROJECT.NUM_VIEWS)
+        text_feat = self.clip_model.encode_text(prompts) # shape == torch.Size([NUM_CLASSES, 512])
+        text_feat = text_feat.repeat(1, self.cfg.MODEL.PROJECT.NUM_VIEWS) # shape == torch.Size([NUM_CLASSES, 512 * NUM_VIEWS])
         return text_feat
+
+
+###### ADDED ######
+class TextEncoder(nn.Module):
+    def __init__(self, clip_model):
+        super().__init__()
+        self.transformer = clip_model.transformer
+        self.positional_embedding = clip_model.positional_embedding
+        self.ln_final = clip_model.ln_final
+        self.text_projection = clip_model.text_projection
+        self.dtype = clip_model.dtype
+
+    def forward(self, prompts, tokenized_prompts):
+
+        x = prompts + self.positional_embedding.type(self.dtype)
+        
+        x = x.permute(1, 0, 2)  # NLD -> LND
+        x = self.transformer(x)
+        x = x.permute(1, 0, 2)  # LND -> NLD
+        x = self.ln_final(x).type(self.dtype)
+        
+        x = x[torch.arange(x.shape[0]), tokenized_prompts.argmax(dim=-1)] @ self.text_projection
+
+        return x
+
+
+class PromptLearner(nn.Module):
+    def __init__(self, cfg, classnames, clip_model):
+        super().__init__()
+        n_cls = len(classnames)
+        n_ctx = cfg.TRAINER.PLOT.N_CTX
+        ctx_init = cfg.TRAINER.PLOT.CTX_INIT
+        dtype = clip_model.dtype
+        ctx_dim = clip_model.ln_final.weight.shape[0]
+        clip_imsize = clip_model.visual.input_resolution
+        cfg_imsize = cfg.INPUT.SIZE[0]
+        self.num_prompts = cfg.TRAINER.PLOT.NUM_PROMPTS
+        assert cfg_imsize == clip_imsize, f"cfg_imsize ({cfg_imsize}) must equal to clip_imsize ({clip_imsize})"
+
+        if ctx_init:
+            # use given words to initialize context vectors
+            ctx_init = ctx_init.replace("_", " ")
+            n_ctx = len(ctx_init.split(" "))
+            prompt = clip.tokenize(ctx_init)
+            with torch.no_grad():
+                embedding = clip_model.token_embedding(prompt).type(dtype)
+            ctx_vectors = embedding[0, 1 : 1 + n_ctx, :]
+            prompt_prefix = ctx_init
+
+        else:
+            # random initialization
+            if cfg.TRAINER.PLOT.CSC:
+                print("Initializing class-specific contexts")
+                ctx_vectors = torch.empty(n_cls, n_ctx, ctx_dim, dtype=dtype)
+            else:
+                print("Initializing a generic context")
+                ctx_vectors = torch.empty(self.num_prompts, n_ctx, ctx_dim, dtype=dtype) 
+            nn.init.normal_(ctx_vectors, std=0.02)   # define the prompt to be trained
+            prompt_prefix = " ".join(["X"] * n_ctx)    
+
+        print(f'Initial context: "{prompt_prefix}"')
+        print(f"Number of context words (tokens): {n_ctx}")
+
+        self.ctx = nn.Parameter(ctx_vectors)  # to be optimized
+        
+
+        classnames = [name.replace("_", " ") for name in classnames]   
+        name_lens = [len(_tokenizer.encode(name)) for name in classnames]
+        prompts = [prompt_prefix + " " + name + "." for name in classnames]
+
+        tokenized_prompts = torch.cat([clip.tokenize(p) for p in prompts]) # shape == (n_cls, ?)
+        tokenized_prompts = tokenized_prompts.repeat(self.num_prompts, 1)  # shape == (n_cls * self.num_prompts, ?)
+        # tokenized_prompts3.view(3,100,77)
+
+        with torch.no_grad():
+            embedding = clip_model.token_embedding(tokenized_prompts).type(dtype) 
+        
+
+        # These token vectors will be saved when in save_model(),
+        # but they should be ignored in load_model() as we want to use
+        # those computed using the current class names
+        self.register_buffer("token_prefix", embedding[:, :1, :])  # SOS
+        self.register_buffer("token_suffix", embedding[:, 1 + n_ctx :, :])  # CLS, EOS
+
+        self.n_cls = n_cls
+        self.n_ctx = n_ctx
+        self.tokenized_prompts = tokenized_prompts  # torch.Tensor
+        self.name_lens = name_lens
+        self.class_token_position = cfg.TRAINER.PLOT.CLASS_TOKEN_POSITION
+
+
+    def forward(self):
+       
+        ctx = self.ctx # shape == (self.num_prompts, n_ctx, ctx_dim)
+        if ctx.dim() == 3:
+            ctx = ctx.unsqueeze(0).expand(self.n_cls, -1, -1,-1) 
+        # ctx.shape == (self.n_cls, self.num_prompts, n_ctx, ctx_dim)
+        ctx = ctx.permute(1, 0, 2, 3) # ctx.shape == (self.num_prompts, self.n_cls, n_ctx, ctx_dim)
+        ctx = ctx.contiguous().view(self.num_prompts*self.n_cls,self.n_ctx,ctx.shape[3])
+
+        prefix = self.token_prefix # tokenized_prompts
+        suffix = self.token_suffix
+
+        if self.class_token_position == "end":
+            prompts = torch.cat(
+                [
+                    prefix,  # (self.num_prompts*self.n_cls, 1, dim)
+                    ctx,     # (self.num_prompts*self.n_cls, n_ctx, dim)
+                    suffix,  # (self.num_prompts*self.n_cls, *, dim)
+                ],
+                dim=1,
+            )
+            # print(prefix.shape, ctx.shape, suffix.shape, prompts.shape)
+            # torch.Size([160, 1, 512]) torch.Size([160, 16, 512]) torch.Size([160, 60, 512]) torch.Size([160, 77, 512])
+
+        elif self.class_token_position == "middle":
+            half_n_ctx = self.n_ctx // 2
+            prompts = []
+            for i in range(self.n_cls):
+                name_len = self.name_lens[i]
+                prefix_i = prefix[i : i + 1, :, :]
+                class_i = suffix[i : i + 1, :name_len, :]
+                suffix_i = suffix[i : i + 1, name_len:, :]
+                ctx_i_half1 = ctx[i : i + 1, :half_n_ctx, :]
+                ctx_i_half2 = ctx[i : i + 1, half_n_ctx:, :]
+                prompt = torch.cat(
+                    [
+                        prefix_i,     # (1, 1, dim)
+                        ctx_i_half1,  # (1, n_ctx//2, dim)
+                        class_i,      # (1, name_len, dim)
+                        ctx_i_half2,  # (1, n_ctx//2, dim)
+                        suffix_i,     # (1, *, dim)
+                    ],
+                    dim=1,
+                )
+                prompts.append(prompt)
+            prompts = torch.cat(prompts, dim=0)
+
+        elif self.class_token_position == "front":
+            prompts = []
+            for i in range(self.n_cls):
+                name_len = self.name_lens[i]
+                prefix_i = prefix[i : i + 1, :, :]
+                class_i = suffix[i : i + 1, :name_len, :]
+                suffix_i = suffix[i : i + 1, name_len:, :]
+                ctx_i = ctx[i : i + 1, :, :]
+                prompt = torch.cat(
+                    [
+                        prefix_i,  # (1, 1, dim)
+                        class_i,   # (1, name_len, dim)
+                        ctx_i,     # (1, n_ctx, dim)
+                        suffix_i,  # (1, *, dim)
+                    ],
+                    dim=1,
+                )
+                prompts.append(prompt)
+            prompts = torch.cat(prompts, dim=0)
+
+        else:
+            raise ValueError
+
+        return prompts
+###### ADDED ######
+
 
 
 class PointCLIP_Model(nn.Module):
@@ -97,7 +269,8 @@ class PointCLIP_Model(nn.Module):
         
         # Encoders from CLIP
         self.visual_encoder = clip_model.visual
-        self.textual_encoder = Textual_Encoder(cfg, classnames, clip_model)
+        self.text_encoder = TextEncoder(clip_model)
+        self.prompt_learner = PromptLearner(cfg, classnames, clip_model)
         
         self.logit_scale = clip_model.logit_scale
         self.dtype = clip_model.dtype
@@ -115,29 +288,47 @@ class PointCLIP_Model(nn.Module):
         self.feat_store = []
         self.label_store = []
 
+        self.num_prompts = cfg.TRAINER.PLOT.NUM_PROMPTS
+        self.num_classes = cfg.DATASET.NUM_CLASSES
+        self.tokenized_prompts = self.prompt_learner.tokenized_prompts
+        self.in_features = cfg.MODEL.BACKBONE.CHANNEL
+
     
     def forward(self, pc, label=None): 
 
         # Project to multi-view depth maps
-        images = self.mv_proj(pc).type(self.dtype)
-
+        images = self.mv_proj(pc).type(self.dtype) # shape == torch.Size([BATCH_SIZE * NUM_VIEWS, 3, 224, 224])
         # Image features
-        image_feat = self.visual_encoder(images)
-        image_feat = self.adapter(image_feat)
+        image_feat = self.visual_encoder(images) # shape == torch.Size([BATCH_SIZE * NUM_VIEWS, 512])
+        image_feat = self.adapter(image_feat) # shape == torch.Size([BATCH_SIZE, 512 * NUM_VIEWS])
+        image_feat = image_feat.reshape(-1, self.num_views, self.in_features)  # shape == torch.Size([BATCH_SIZE, NUM_VIEWS, 512])
         image_feat = image_feat / image_feat.norm(dim=-1, keepdim=True)   
-
         # Store for the best ckpt
         if self.store:
             self.feat_store.append(image_feat)
             self.label_store.append(label)
 
         # Text features
-        text_feat = self.textual_encoder()
+        prompts = self.prompt_learner() # torch.Size([160, 77, 512])
+        tokenized_prompts = self.tokenized_prompts # torch.Size([160, 77])
+        text_feat = self.text_encoder(prompts, tokenized_prompts) # torch.Size([160, 512])
+        text_feat = text_feat.contiguous().view(self.num_prompts, self.num_classes, self.in_features)
+        text_feat = text_feat.permute(1, 0, 2) # shape == (num_classes, num_prompts, 512)
         text_feat = text_feat / text_feat.norm(dim=-1, keepdim=True)
-        
-        # Classification logits
+
+        # print(image_feat.shape, text_feat.shape) # torch.Size([32, 10, 512]) torch.Size([40, 4, 512])
+
         logit_scale = self.logit_scale.exp()
-        logits = logit_scale * image_feat @ text_feat.t() * 1.
+        # logits = logit_scale * image_feat @ text_feat.t() * 1. # shape == torch.Size([BATCH_SIZE, NUM_CLASSES])
+        # print(f"caccc {logits.shape}")
+
+        sim = torch.matmul(image_feat.reshape(-1, self.in_features), text_feat.reshape(-1, self.in_features).permute(1, 0))
+        sim = sim.reshape(image_feat.shape[0], self.num_classes, self.num_views, self.num_prompts)
+
+        # sim_hat = torch.einsum('bvd,cnd->bcvn', image_feat, text_feat).contiguous()
+
+        # print(torch.mean(sim - sim_hat))
+        logits = torch.sum(sim, dim=(2, 3))
 
         return logits
 
@@ -145,6 +336,34 @@ class PointCLIP_Model(nn.Module):
         img = self.get_img(pc).cuda()
         img = img.unsqueeze(1).repeat(1, 3, 1, 1)
         return img
+
+
+def compute_logits(image_feat, text_feat, logit_scale, eps=0.01, max_iter=1000):
+    """
+        image_feat.shape == (batch_size, num_views, dims)
+        text_feat.shape == (num_classes, num_prompts, dims)
+    """
+    batch_size = image_feat.shape[0]
+    num_views = image_feat.shape[1]
+    dims = image_feat.shape[2]
+    num_classes = text_feat.shape[0]
+    num_prompts = text_feat.shape[1]
+    sim = torch.einsum('bvd,cnd->bcvn', image_feat, text_feat).contiguous() # shape == (batch_size, num_classes, num_views, num_prompts)
+    sim = sim.view(batch_size * num_classes, num_views, num_prompts)
+    wdist = 1.0 - sim
+
+    p = torch.zeros(batch_size * num_classes, num_views, dtype=wdist.dtype, device=wdist.device).fill_(1. / num_views)
+    q = torch.zeros(batch_size * num_classes, num_prompts, dtype=wdist.dtype, device=wdist.device).fill_(1. / num_prompts)
+    sinkhorn_solver = SinkhornAlgorithm(epsilon=eps, iterations=max_iter)
+    with torch.no_grad():
+        T = sinkhorn_solver(p, q, wdist) # shape == (batch_size * num_classes, num_views, num_prompts)
+
+    sim_op = torch.sum(T * wdist, dim=(1, 2))  # change here
+    sim_op = sim_op.contiguous().view(batch_size, num_classes)
+
+    ot_distance = logit_scale.exp() * sim_op
+
+    return ot_distance
 
 
 class Adapter(nn.Module):
@@ -189,13 +408,15 @@ class Adapter(nn.Module):
         res_feat = feat.reshape(-1, self.num_views * self.in_features)
         
         # Global feature
-        global_feat = self.global_f(img_feat * self.fusion_ratio.reshape(1, -1, 1))
+        global_feat = self.global_f(img_feat * self.fusion_ratio.reshape(1, -1, 1)) # shape == (BATCH_SIZE, 512)
         # View-wise adapted features
-        view_feat = self.view_f(global_feat)
+        view_feat = self.view_f(global_feat) # shape == (BATCH_SIZE, 5120)
         
-        img_feat = view_feat * self.adapter_ratio + res_feat * (1 - self.adapter_ratio)
+        img_feat = view_feat * self.adapter_ratio + res_feat * (1 - self.adapter_ratio) # shape == (BATCH_SIZE, 5120)
 
+        # print(global_feat.shape, view_feat.shape, img_feat.shape)
         return img_feat
+
 
 
 @TRAINER_REGISTRY.register()
@@ -217,18 +438,27 @@ class PointCLIP_FS(TrainerX):
 
         print('Turning off gradients in both visual and textual encoders')
         for name, param in self.model.named_parameters():
-            if 'adapter' not in name:
+            if "prompt_learner" in name:
+                continue
+            elif "adapter" in name:
+                continue
+            else:
                 param.requires_grad_(False)
 
         if cfg.MODEL.INIT_WEIGHTS:
             load_pretrained_weights(self.model.adapter, cfg.MODEL.INIT_WEIGHTS)
 
-        
         self.model.to(self.device)
-        self.optim = build_optimizer(self.model.adapter, cfg.OPTIM)
-        self.sched = build_lr_scheduler(self.optim, cfg.OPTIM)
 
-        self.register_model('adapter', self.model.adapter, self.optim, self.sched)
+        # give adapter to the optimizer
+        self.adapter_optim = build_optimizer(self.model.adapter, cfg.OPTIM.ADAPTER)
+        self.adapter_sched = build_lr_scheduler(self.adapter_optim, cfg.OPTIM.ADAPTER)
+        self.register_model("adapter", self.model.adapter, self.adapter_optim, self.adapter_sched)
+
+        # give prompt_learner to the optimizer
+        self.prompt_optim = build_optimizer(self.model.prompt_learner, cfg.OPTIM.PROMPT)
+        self.prompt_sched = build_lr_scheduler(self.prompt_optim, cfg.OPTIM.PROMPT)
+        self.register_model("prompt_learner", self.model.prompt_learner, self.prompt_optim, self.prompt_sched)
 
         device_count = torch.cuda.device_count()
         if device_count > 1:

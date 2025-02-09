@@ -48,6 +48,9 @@ def reset_cfg(cfg, args):
     if args.num_shots:
         cfg.DATASET.NUM_SHOTS = args.num_shots
 
+    if args.num_prompts:
+        cfg.TRAINER.PLOT.NUM_PROMPTS = args.num_prompts
+
 
 def extend_cfg(cfg):
     """
@@ -61,7 +64,12 @@ def extend_cfg(cfg):
         cfg.TRAINER.MY_MODEL.PARAM_C = False
     """
     from yacs.config import CfgNode as CN
-    cfg.TRAINER.EXTRA = CN()
+    cfg.TRAINER.PLOT = CN()
+    cfg.TRAINER.PLOT.N_CTX = 16  # number of context vectors
+    cfg.TRAINER.PLOT.CSC = False  # class-specific context
+    cfg.TRAINER.PLOT.CTX_INIT = ""  # initialization words
+    cfg.TRAINER.PLOT.PREC = "fp16"  # fp16, fp32, amp
+    cfg.TRAINER.PLOT.CLASS_TOKEN_POSITION = "end"  # 'middle' or 'end' or 'front'
 
 
 def setup_cfg(args):
@@ -181,6 +189,9 @@ if __name__ == '__main__':
     )
     parser.add_argument(
         '--num-shots', default=0, type=int, help='shot numbers for few-shot classification'
+    )
+    parser.add_argument(
+        '--num_prompts', default=1, type=int, help='number of textual prompts'
     )
     parser.add_argument(
         '--model-dir',
