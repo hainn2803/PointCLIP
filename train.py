@@ -51,6 +51,10 @@ def reset_cfg(cfg, args):
     if args.num_prompts:
         cfg.TRAINER.PLOT.NUM_PROMPTS = args.num_prompts
 
+    if args.logit_scale == "on":    
+        cfg.TRAINER.logit_scale = True 
+    else:
+        cfg.TRAINER.logit_scale = False
 
 def extend_cfg(cfg):
     """
@@ -186,6 +190,9 @@ if __name__ == '__main__':
     )
     parser.add_argument(
         '--post-search', action='store_true', help='post-search only'
+    )
+    parser.add_argument(
+        '--logit-scale', type=str, default="on", help='scale the logits'
     )
     parser.add_argument(
         '--num-shots', default=0, type=int, help='shot numbers for few-shot classification'

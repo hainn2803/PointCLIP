@@ -291,6 +291,8 @@ class PointCLIP_Model(nn.Module):
         self.tokenized_prompts = self.prompt_learner.tokenized_prompts
         self.in_features = cfg.MODEL.BACKBONE.CHANNEL
 
+        self.have_logit_scale = cfg.TRAINER.logit_scale
+
     
     def forward(self, pc, label=None): 
 
@@ -316,20 +318,11 @@ class PointCLIP_Model(nn.Module):
 
         # print(image_feat.shape, text_feat.shape) # torch.Size([32, 10, 512]) torch.Size([40, 4, 512])
 
-        logit_scale = self.logit_scale.exp()
-        # logits = logit_scale * image_feat @ text_feat.t() * 1. # shape == torch.Size([BATCH_SIZE, NUM_CLASSES])
-        # print(f"caccc {logits.shape}")
-
-        sim = torch.matmul(image_feat.reshape(-1, self.in_features), text_feat.reshape(-1, self.in_features).permute(1, 0))
-        sim = sim.reshape(image_feat.shape[0], self.num_classes, self.num_views, self.num_prompts)
-        logits = torch.sum(sim, dim=(2, 3))
-
-        # sim_hat = torch.einsum('bvd,cnd->bcvn', image_feat, text_feat).contiguous()
-
-        # print(torch.mean(sim - sim_hat))
-
+        if self.have_logit_scale is True:
+            logit_scale = self.logit_scale.exp()
+        else:
+            logit_scale = 1
         logits = logit_scale * compute_logits(image_feat=image_feat, text_feat=text_feat, eps=0.001, max_iter=10000)
-
         return logits
 
     def mv_proj(self, pc):
@@ -348,10 +341,10 @@ def compute_logits(image_feat, text_feat, eps=0.01, max_iter=1000):
     in_features = image_feat.shape[2]
     num_classes = text_feat.shape[0]
     num_prompts = text_feat.shape[1]
-    # sim = torch.einsum('bvd,cnd->bcvn', image_feat, text_feat).contiguous() # shape == (batch_size, num_classes, num_views, num_prompts)
 
     sim = torch.matmul(image_feat.reshape(-1, in_features), text_feat.reshape(-1, in_features).permute(1, 0))
     sim = sim.reshape(image_feat.shape[0], num_classes, num_views, num_prompts)
+    sim_op = torch.sum(T * sim, dim=(2, 3))
 
     # sim = sim.view(batch_size * num_classes, num_views, num_prompts)
     # wdist = 1.0 - sim
@@ -363,7 +356,7 @@ def compute_logits(image_feat, text_feat, eps=0.01, max_iter=1000):
     #     wdist_exp = torch.exp(-wdist / eps)
     #     T = sinkhorn_solver(p, q, wdist_exp) # shape == (batch_size * num_classes, num_views, num_prompts)
 
-    sim_op = torch.sum(sim, dim=(2, 3))  # change here
+    # sim_op = torch.sum(T * sim, dim=(1, 2))
     # sim_op = sim_op.contiguous().view(batch_size, num_classes)
 
     return sim_op
