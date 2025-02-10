@@ -14,18 +14,18 @@ CTP=end  # class token position (end or middle)
 NCTX=16  # number of context tokens
 # SHOTS=$5  # number of shots (1, 2, 4, 8, 16)
 CSC=False  # class-specific context (False or True)
-NUM_PROMPTS=1  # number of proxy
+NUM_PROMPTS=4  # number of proxy
 
 # Shot number
 NUM_SHOTS=16
 
-export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
+export CUDA_VISIBLE_DEVICES=0,1,3,4,5,7
 python train.py \
 --root ${DATA} \
 --trainer ${TRAINER} \
 --num-shots ${NUM_SHOTS} \
 --dataset-config-file configs/datasets/${DATASET}.yaml \
 --config-file configs/trainers/${TRAINER}/${CFG}.yaml \
---output-dir output/NUM_SHOTS_{${NUM_SHOTS}}/NUM_PROMPTS_{${NUM_PROMPTS}}/learnable_prompt_adapter/${TRAINER}/${CFG}/${DATASET} \
+--output-dir output/NUM_SHOTS_${NUM_SHOTS}/NUM_PROMPTS_${NUM_PROMPTS}/learnable_prompt_adapter_OT_2/${TRAINER}/${CFG}/${DATASET} \
 --num-prompts ${NUM_PROMPTS} \
 --post-search

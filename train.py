@@ -191,7 +191,7 @@ if __name__ == '__main__':
         '--num-shots', default=0, type=int, help='shot numbers for few-shot classification'
     )
     parser.add_argument(
-        '--num_prompts', default=1, type=int, help='number of textual prompts'
+        '--num-prompts', default=1, type=int, help='number of textual prompts'
     )
     parser.add_argument(
         '--model-dir',

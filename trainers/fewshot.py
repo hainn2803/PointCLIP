@@ -77,8 +77,6 @@ def load_clip_to_cpu(cfg, model_path="clip/pretrained_weights/RN101.pt"):
 
 
 
-
-
 class Textual_Encoder(nn.Module):
 
     def __init__(self, cfg, classnames, clip_model):
@@ -324,11 +322,13 @@ class PointCLIP_Model(nn.Module):
 
         sim = torch.matmul(image_feat.reshape(-1, self.in_features), text_feat.reshape(-1, self.in_features).permute(1, 0))
         sim = sim.reshape(image_feat.shape[0], self.num_classes, self.num_views, self.num_prompts)
+        logits = torch.sum(sim, dim=(2, 3))
 
         # sim_hat = torch.einsum('bvd,cnd->bcvn', image_feat, text_feat).contiguous()
 
         # print(torch.mean(sim - sim_hat))
-        logits = torch.sum(sim, dim=(2, 3))
+
+        logits = logit_scale * compute_logits(image_feat=image_feat, text_feat=text_feat, eps=0.001, max_iter=10000)
 
         return logits
 
@@ -338,32 +338,35 @@ class PointCLIP_Model(nn.Module):
         return img
 
 
-def compute_logits(image_feat, text_feat, logit_scale, eps=0.01, max_iter=1000):
+def compute_logits(image_feat, text_feat, eps=0.01, max_iter=1000):
     """
         image_feat.shape == (batch_size, num_views, dims)
         text_feat.shape == (num_classes, num_prompts, dims)
     """
     batch_size = image_feat.shape[0]
     num_views = image_feat.shape[1]
-    dims = image_feat.shape[2]
+    in_features = image_feat.shape[2]
     num_classes = text_feat.shape[0]
     num_prompts = text_feat.shape[1]
-    sim = torch.einsum('bvd,cnd->bcvn', image_feat, text_feat).contiguous() # shape == (batch_size, num_classes, num_views, num_prompts)
-    sim = sim.view(batch_size * num_classes, num_views, num_prompts)
-    wdist = 1.0 - sim
+    # sim = torch.einsum('bvd,cnd->bcvn', image_feat, text_feat).contiguous() # shape == (batch_size, num_classes, num_views, num_prompts)
 
-    p = torch.zeros(batch_size * num_classes, num_views, dtype=wdist.dtype, device=wdist.device).fill_(1. / num_views)
-    q = torch.zeros(batch_size * num_classes, num_prompts, dtype=wdist.dtype, device=wdist.device).fill_(1. / num_prompts)
-    sinkhorn_solver = SinkhornAlgorithm(epsilon=eps, iterations=max_iter)
-    with torch.no_grad():
-        T = sinkhorn_solver(p, q, wdist) # shape == (batch_size * num_classes, num_views, num_prompts)
+    sim = torch.matmul(image_feat.reshape(-1, in_features), text_feat.reshape(-1, in_features).permute(1, 0))
+    sim = sim.reshape(image_feat.shape[0], num_classes, num_views, num_prompts)
 
-    sim_op = torch.sum(T * wdist, dim=(1, 2))  # change here
-    sim_op = sim_op.contiguous().view(batch_size, num_classes)
+    # sim = sim.view(batch_size * num_classes, num_views, num_prompts)
+    # wdist = 1.0 - sim
 
-    ot_distance = logit_scale.exp() * sim_op
+    # p = torch.zeros(batch_size * num_classes, num_views, dtype=wdist.dtype, device=wdist.device).fill_(1. / num_views)
+    # q = torch.zeros(batch_size * num_classes, num_prompts, dtype=wdist.dtype, device=wdist.device).fill_(1. / num_prompts)
+    # sinkhorn_solver = SinkhornAlgorithm(epsilon=eps, iterations=max_iter)
+    # with torch.no_grad():
+    #     wdist_exp = torch.exp(-wdist / eps)
+    #     T = sinkhorn_solver(p, q, wdist_exp) # shape == (batch_size * num_classes, num_views, num_prompts)
 
-    return ot_distance
+    sim_op = torch.sum(sim, dim=(2, 3))  # change here
+    # sim_op = sim_op.contiguous().view(batch_size, num_classes)
+
+    return sim_op
 
 
 class Adapter(nn.Module):
