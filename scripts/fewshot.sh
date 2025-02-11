@@ -14,8 +14,8 @@ CTP=end  # class token position (end or middle)
 NCTX=16  # number of context tokens
 # SHOTS=$5  # number of shots (1, 2, 4, 8, 16)
 CSC=False  # class-specific context (False or True)
-NUM_PROMPTS=4  # number of proxy
-LOGIT_SCALE=off # on off
+NUM_PROMPTS=10  # number of proxy
+LOGIT_SCALE=on # on off
 
 # Shot number
 NUM_SHOTS=16
@@ -27,7 +27,7 @@ python train.py \
 --num-shots ${NUM_SHOTS} \
 --dataset-config-file configs/datasets/${DATASET}.yaml \
 --config-file configs/trainers/${TRAINER}/${CFG}.yaml \
---output-dir output/NUM_SHOTS_${NUM_SHOTS}/NUM_PROMPTS_${NUM_PROMPTS}/learnable_prompt_logit_scale_${LOGIT_SCALE}/${TRAINER}/${CFG}/${DATASET} \
+--output-dir output/PROMPT_LR_0.002/ADAPTER_LR_0.01/NUM_SHOTS_${NUM_SHOTS}/NUM_PROMPTS_${NUM_PROMPTS}/PLOT_learnable_prompt_logit_scale_${LOGIT_SCALE}/${TRAINER}/${CFG}/${DATASET} \
 --num-prompts ${NUM_PROMPTS} \
 --logit-scale ${LOGIT_SCALE} \
 --post-search
