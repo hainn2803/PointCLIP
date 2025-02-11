@@ -344,20 +344,18 @@ def compute_logits(image_feat, text_feat, eps=0.01, max_iter=1000):
 
     sim = torch.matmul(image_feat.reshape(-1, in_features), text_feat.reshape(-1, in_features).permute(1, 0))
     sim = sim.reshape(image_feat.shape[0], num_classes, num_views, num_prompts)
-    sim_op = torch.sum(T * sim, dim=(2, 3))
+    sim = sim.view(batch_size * num_classes, num_views, num_prompts)
+    wdist = 1.0 - sim
 
-    # sim = sim.view(batch_size * num_classes, num_views, num_prompts)
-    # wdist = 1.0 - sim
+    p = torch.zeros(batch_size * num_classes, num_views, dtype=wdist.dtype, device=wdist.device).fill_(1. / num_views)
+    q = torch.zeros(batch_size * num_classes, num_prompts, dtype=wdist.dtype, device=wdist.device).fill_(1. / num_prompts)
+    sinkhorn_solver = SinkhornAlgorithm(epsilon=eps, iterations=max_iter)
+    with torch.no_grad():
+        wdist_exp = torch.exp(-wdist / eps)
+        T = sinkhorn_solver(p, q, wdist_exp) # shape == (batch_size * num_classes, num_views, num_prompts)
 
-    # p = torch.zeros(batch_size * num_classes, num_views, dtype=wdist.dtype, device=wdist.device).fill_(1. / num_views)
-    # q = torch.zeros(batch_size * num_classes, num_prompts, dtype=wdist.dtype, device=wdist.device).fill_(1. / num_prompts)
-    # sinkhorn_solver = SinkhornAlgorithm(epsilon=eps, iterations=max_iter)
-    # with torch.no_grad():
-    #     wdist_exp = torch.exp(-wdist / eps)
-    #     T = sinkhorn_solver(p, q, wdist_exp) # shape == (batch_size * num_classes, num_views, num_prompts)
-
-    # sim_op = torch.sum(T * sim, dim=(1, 2))
-    # sim_op = sim_op.contiguous().view(batch_size, num_classes)
+    sim_op = torch.sum(T * sim, dim=(1, 2))
+    sim_op = sim_op.contiguous().view(batch_size, num_classes)
 
     return sim_op
 
