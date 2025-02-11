@@ -15,7 +15,7 @@ NCTX=16  # number of context tokens
 # SHOTS=$5  # number of shots (1, 2, 4, 8, 16)
 CSC=False  # class-specific context (False or True)
 NUM_PROMPTS=4  # number of proxy
-LOGIT_SCALE=on # on off
+LOGIT_SCALE=off # on off
 
 # Shot number
 NUM_SHOTS=16

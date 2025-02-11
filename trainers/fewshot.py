@@ -344,7 +344,7 @@ def compute_logits(image_feat, text_feat, eps=0.01, max_iter=1000):
 
     sim = torch.matmul(image_feat.reshape(-1, in_features), text_feat.reshape(-1, in_features).permute(1, 0))
     sim = sim.reshape(image_feat.shape[0], num_classes, num_views, num_prompts)
-    sim_op = torch.sum(T * sim, dim=(2, 3))
+    sim_op = torch.sum(sim, dim=(2, 3))
 
     # sim = sim.view(batch_size * num_classes, num_views, num_prompts)
     # wdist = 1.0 - sim
