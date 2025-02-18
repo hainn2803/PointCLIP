@@ -238,7 +238,26 @@ class PCViews:
     """
 
     def __init__(self):
-        _views = np.asarray([
+
+        def generate_views(num_views=10, trans=1.0):
+            views = []
+            
+            for i in range(num_views):
+                # Chia đều góc nhìn theo vòng tròn (azimuth)
+                azimuth = (i % 4) * (np.pi / 2)  # 4 góc chính (0, 90, 180, 270 độ)
+                
+                # Góc nghiêng (elevation) biến đổi theo từng nhóm 4 views để có góc nhìn đa dạng hơn
+                elevation = (i // 4) * (np.pi / 4) - (np.pi / 4) * ((i // 8) % 2) 
+                
+                # Giữ nguyên roll để đảm bảo consistency
+                roll = np.pi / 2
+
+                # Thêm view vào danh sách
+                views.append([[azimuth, elevation, roll], [0, 0, trans]])
+
+            return np.asarray(views)
+
+        _VIEWS = np.asarray([
             [[0 * np.pi / 2, 0, np.pi / 2], [0, 0, TRANS]],
             [[1 * np.pi / 2, 0, np.pi / 2], [0, 0, TRANS]],
             [[2 * np.pi / 2, 0, np.pi / 2], [0, 0, TRANS]],
@@ -251,6 +270,10 @@ class PCViews:
             [[0, np.pi / 2, np.pi / 2], [0, 0, TRANS]]])
 
         self.num_views = 10
+
+        # _VIEWS = generate_views(num_views=self.num_views, trans=TRANS)
+
+        _views = _VIEWS[:self.num_views]
         
         angle = torch.tensor(_views[:, 0, :]).float().cuda()
         self.rot_mat = euler2mat(angle).transpose(1, 2)

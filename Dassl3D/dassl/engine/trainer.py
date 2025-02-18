@@ -325,6 +325,7 @@ class SimpleTrainer(TrainerBase):
         self.build_model()
         self.evaluator = build_evaluator(cfg, lab2cname=self.dm.lab2cname)
         self.best_result = -np.inf
+        self.best_epoch = -1
 
     def check_cfg(self, cfg):
         """Check whether some variables are set correctly for
@@ -433,10 +434,11 @@ class SimpleTrainer(TrainerBase):
             is_best = curr_result > self.best_result
             if is_best:
                 self.best_result = curr_result
+                self.best_epoch = self.epoch
                 self.save_model(
                     self.epoch,
                     self.output_dir,
-                    model_name='model-best.pth.tar'
+                    model_name=f'model-best.pth.tar'
                 )
 
         if meet_checkpoint_freq or last_epoch:
