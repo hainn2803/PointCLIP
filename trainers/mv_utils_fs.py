@@ -271,7 +271,7 @@ class PCViews:
 
         self.num_views = 10
 
-        # _VIEWS = generate_views(num_views=self.num_views, trans=TRANS)
+        _VIEWS = generate_views(num_views=self.num_views, trans=TRANS)
 
         _views = _VIEWS[:self.num_views]
         
