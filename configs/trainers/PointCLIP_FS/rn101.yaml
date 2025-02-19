@@ -37,7 +37,7 @@ MODEL:
     NAME: 'RN101'
     CHANNEL: 512
   PROJECT:
-    NUM_VIEWS: 10
+    NUM_VIEWS: 20
   ADAPTER:
     RATIO: 0.6
 
