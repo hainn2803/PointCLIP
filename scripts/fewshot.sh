@@ -14,7 +14,7 @@ CTP=end  # class token position (end or middle)
 NCTX=16  # number of context tokens
 # SHOTS=$5  # number of shots (1, 2, 4, 8, 16)
 CSC=False  # class-specific context (False or True)
-NUM_PROMPTS=10  # number of proxy
+NUM_PROMPTS=6  # number of proxy
 LOGIT_SCALE=on # on off
 
 # Shot number
