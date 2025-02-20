@@ -21,3 +21,5 @@ clip/pretrained_weights
 data
 # output
 output*
+# file out err
+sbatch*
