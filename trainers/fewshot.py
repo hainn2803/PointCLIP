@@ -323,7 +323,7 @@ class PointCLIP_Model(nn.Module):
             logit_scale = self.logit_scale.exp()
         else:
             logit_scale = 1
-        logits = logit_scale * compute_logits(image_feat=image_feat, text_feat=text_feat, eps=0.001, max_iter=10000)
+        logits = logit_scale * compute_logits(image_feat=image_feat, text_feat=text_feat, eps=0.01, max_iter=1000)
         return logits
 
     def mv_proj(self, pc):
