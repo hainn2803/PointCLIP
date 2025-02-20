@@ -257,19 +257,19 @@ class PCViews:
 
             return np.asarray(views)
 
-        _VIEWS = np.asarray([
-            [[0 * np.pi / 2, 0, np.pi / 2], [0, 0, TRANS]],
-            [[1 * np.pi / 2, 0, np.pi / 2], [0, 0, TRANS]],
-            [[2 * np.pi / 2, 0, np.pi / 2], [0, 0, TRANS]],
-            [[3 * np.pi / 2, 0, np.pi / 2], [0, 0, TRANS]],
-            [[5 * np.pi / 4, -np.pi / 4, np.pi / 2], [0, 0, TRANS]], 
-            [[5 * np.pi / 4, np.pi / 4, np.pi / 2], [0, 0, TRANS]], 
-            [[7 * np.pi / 4, -np.pi / 4, np.pi / 2], [0, 0, TRANS]], 
-            [[7 * np.pi / 4, np.pi / 4, np.pi / 2], [0, 0, TRANS]],  
-            [[0, -np.pi / 2, np.pi / 2], [0, 0, TRANS]],
-            [[0, np.pi / 2, np.pi / 2], [0, 0, TRANS]]])
+        ORIGINAL_VIEWS = np.asarray([
+                [[0 * np.pi / 2, 0, np.pi / 2], [0, 0, TRANS]],
+                [[1 * np.pi / 2, 0, np.pi / 2], [0, 0, TRANS]],
+                [[2 * np.pi / 2, 0, np.pi / 2], [0, 0, TRANS]],
+                [[3 * np.pi / 2, 0, np.pi / 2], [0, 0, TRANS]],
+                [[5 * np.pi / 4, -np.pi / 4, np.pi / 2], [0, 0, TRANS]], 
+                [[5 * np.pi / 4, np.pi / 4, np.pi / 2], [0, 0, TRANS]], 
+                [[7 * np.pi / 4, -np.pi / 4, np.pi / 2], [0, 0, TRANS]], 
+                [[7 * np.pi / 4, np.pi / 4, np.pi / 2], [0, 0, TRANS]],  
+                [[0, -np.pi / 2, np.pi / 2], [0, 0, TRANS]],
+                [[0, np.pi / 2, np.pi / 2], [0, 0, TRANS]]])
 
-        self.num_views = 15
+        self.num_views = 10
 
         _VIEWS = generate_views(num_views=self.num_views, trans=TRANS)
 

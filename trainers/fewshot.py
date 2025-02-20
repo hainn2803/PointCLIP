@@ -302,7 +302,8 @@ class PointCLIP_Model(nn.Module):
         image_feat = self.visual_encoder(images) # shape == torch.Size([BATCH_SIZE * NUM_VIEWS, 512])
         image_feat = self.adapter(image_feat) # shape == torch.Size([BATCH_SIZE, 512 * NUM_VIEWS])
         image_feat = image_feat.reshape(-1, self.num_views, self.in_features)  # shape == torch.Size([BATCH_SIZE, NUM_VIEWS, 512])
-        image_feat = image_feat / image_feat.norm(dim=-1, keepdim=True)   
+        image_feat = image_feat / image_feat.norm(dim=-1, keepdim=True) 
+
         # Store for the best ckpt
         if self.store:
             self.feat_store.append(image_feat)
@@ -352,13 +353,13 @@ def compute_logits(image_feat, text_feat, eps=0.01, max_iter=1000):
     q = torch.zeros(batch_size * num_classes, num_prompts, dtype=wdist.dtype, device=wdist.device).fill_(1. / num_prompts)
     sinkhorn_solver = SinkhornAlgorithm(epsilon=eps, iterations=max_iter)
     with torch.no_grad():
-        wdist_exp = torch.exp(-wdist / eps)
-        T = sinkhorn_solver(p, q, wdist_exp) # shape == (batch_size * num_classes, num_views, num_prompts)
+        # wdist_exp = torch.exp(-wdist / eps)
+        T = sinkhorn_solver(p, q, wdist) # shape == (batch_size * num_classes, num_views, num_prompts)
 
-    sim_op = torch.sum(T * sim, dim=(1, 2))
+    sim_op = torch.sum(T * wdist, dim=(1, 2))
     sim_op = sim_op.contiguous().view(batch_size, num_classes)
 
-    return sim_op
+    return (1 - sim_op)
 
 
 class Adapter(nn.Module):
@@ -463,8 +464,23 @@ class PointCLIP_FS(TrainerX):
     def forward_backward(self, batch):
         image, label = self.parse_batch_train(batch)
         output = self.model(image)
-        loss = smooth_loss(output, label)
-        # loss = F.cross_entropy(output, label)
+
+
+
+
+
+
+
+
+        # loss = smooth_loss(output, label)
+
+
+
+        loss = F.cross_entropy(output, label)
+
+
+
+
         self.model_backward_and_update(loss)
 
         loss_summary = {
