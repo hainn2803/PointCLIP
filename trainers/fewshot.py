@@ -17,6 +17,8 @@ from trainers.sinkhorn import SinkhornAlgorithm
 from clip.simple_tokenizer import SimpleTokenizer as _Tokenizer
 _tokenizer = _Tokenizer()
 
+import ot
+
 
 CUSTOM_TEMPLATES = {
     'ModelNet40': 'point cloud of a big {}.'
@@ -353,13 +355,15 @@ def compute_logits(image_feat, text_feat, eps=0.01, max_iter=1000):
     q = torch.zeros(batch_size * num_classes, num_prompts, dtype=wdist.dtype, device=wdist.device).fill_(1. / num_prompts)
     sinkhorn_solver = SinkhornAlgorithm(epsilon=eps, iterations=max_iter)
     with torch.no_grad():
-        # wdist_exp = torch.exp(-wdist / eps)
-        T = sinkhorn_solver(p, q, wdist) # shape == (batch_size * num_classes, num_views, num_prompts)
+        wdist_exp = torch.exp(-wdist / eps)
+        T = sinkhorn_solver(p, q, wdist_exp) # shape == (batch_size * num_classes, num_views, num_prompts)
+        print(torch.sum(T))
+        # assert torch.sum(T) == batch_size * num_classes
 
-    sim_op = torch.sum(T * wdist, dim=(1, 2))
-    sim_op = sim_op.contiguous().view(batch_size, num_classes)
+    d_OT = torch.sum(T * wdist, dim=(1, 2))
+    d_OT = d_OT.contiguous().view(batch_size, num_classes)
 
-    return (1 - sim_op)
+    return d_OT
 
 
 class Adapter(nn.Module):
@@ -460,38 +464,48 @@ class PointCLIP_FS(TrainerX):
         if device_count > 1:
             print(f'Multiple GPUs detected (n_gpus={device_count}), use all of them!')
             self.model = nn.DataParallel(self.model)
+        
+
+        self.sinkhorn_solver = SinkhornAlgorithm(epsilon=0.01, iterations=1000)
 
     def forward_backward(self, batch):
         image, label = self.parse_batch_train(batch)
-        output = self.model(image)
+        d_OT = self.model(image) # shape == (batch_size, num_classes) # half
 
+        batch_size = d_OT.shape[0]
+        num_classes = d_OT.shape[1]
 
+        T_empirical = torch.zeros(batch_size, num_classes).to(self.device).scatter(1, label.view(-1, 1), 1) # float
+        T_empirical = T_empirical / torch.sum(T_empirical)
 
+        p = torch.zeros(batch_size, dtype=d_OT.dtype, device=d_OT.device).fill_(1. / batch_size)
+        q = torch.zeros(num_classes, dtype=d_OT.dtype, device=d_OT.device).fill_(1. / num_classes)
+        # T_opt = self.sinkhorn_solver(p, q, d_OT)[0] # half
 
+        reg_kl = (float("inf"), 0.001)
+        reg = 0.01
+        d_OT = d_OT.float() / d_OT.max()
+        T_opt = ot.unbalanced.sinkhorn_unbalanced(a=p.float(), b=q.float(), reg=reg, reg_m=reg_kl, M=d_OT.float(), numItermax=1000, method="sinkhorn_stabilized")
+        print(torch.sum(T_opt))
 
-
-
-
-        # loss = smooth_loss(output, label)
-
-
-
-        loss = F.cross_entropy(output, label)
-
-
-
-
+        # print(torch.sum(T_opt))
+        loss = torch.sum(-(T_empirical) * torch.log(T_opt + 1e-4))
+        # print(loss)
         self.model_backward_and_update(loss)
 
         loss_summary = {
             'loss': loss.item(),
-            'acc': compute_accuracy(output, label)[0].item()
+            'acc': compute_accuracy(-d_OT, label)[0].item()
         }
 
         if (self.batch_idx + 1) == self.num_batches:
             self.update_lr()
 
         return loss_summary
+
+    def model_inference(self, image, label):
+        d_OT = self.model(image)
+        return -d_OT
 
     def parse_batch_train(self, batch):
         input = batch['img']

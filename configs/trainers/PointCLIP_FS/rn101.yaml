@@ -19,7 +19,7 @@ OPTIM:
     WARMUP_CONS_LR: 1e-5
   PROMPT:
     NAME: 'sgd'
-    LR: 0.08
+    LR: 0.01
     MAX_EPOCH: 500
     LR_SCHEDULER: 'cosine'
     WARMUP_EPOCH: 1

@@ -52,6 +52,7 @@ for i in range(10):
     q = torch.zeros(batch_size * num_classes, num_prompts, dtype=wdist.dtype, device=wdist.device).fill_(1. / num_prompts)
     sinkhorn_solver = SinkhornAlgorithm(epsilon=eps, iterations=max_iter, threshold=thresh)
     T = sinkhorn_solver(p, q, wdist) # shape == (batch_size * num_classes, num_views, num_prompts)
+    # print(torch.sum(T, dim=(1,2)))
 
 
 
@@ -73,7 +74,8 @@ for i in range(10):
     total_error = 0
     for i in range(len(p)):
         T_pot = ot.sinkhorn(a=p[i], b=q[i], M=wdist[i], reg=eps, numItermax=max_iter, stopThr=thresh, method="sinkhorn_log")
+        print(torch.sum(T_pot), torch.sum(T[i]))
         # print(T_pot)
         total_error += torch.mean(T[i] - T_pot)
     
-    print(total_error)
+    # print(total_error)
