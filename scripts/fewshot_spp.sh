@@ -54,7 +54,7 @@ python train.py \
 --num-shots ${NUM_SHOTS} \
 --dataset-config-file configs/datasets/${DATASET}.yaml \
 --config-file configs/trainers/${TRAINER}/${CFG}.yaml \
---output-dir output_spp/reg_kl_0.1/PROMPT_LR_0.08/ADAPTER_LR_0.01/NUM_SHOTS_${NUM_SHOTS}/NUM_PROMPTS_${NUM_PROMPTS}/PLOT_learnable_prompt_logit_scale_${LOGIT_SCALE}/${TRAINER}/${CFG}/${DATASET} \
+--output-dir output_spp/reg_kl_1.0/PROMPT_LR_0.08/ADAPTER_LR_0.01/NUM_SHOTS_${NUM_SHOTS}/NUM_PROMPTS_${NUM_PROMPTS}/PLOT_learnable_prompt_logit_scale_${LOGIT_SCALE}/${TRAINER}/${CFG}/${DATASET} \
 --num-prompts ${NUM_PROMPTS} \
 --logit-scale ${LOGIT_SCALE} \
 --post-search
