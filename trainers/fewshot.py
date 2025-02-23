@@ -478,8 +478,8 @@ class PointCLIP_FS(TrainerX):
         T_empirical = torch.zeros(batch_size, num_classes).to(self.device).scatter(1, label.view(-1, 1), 1) # float
         T_empirical = T_empirical / torch.sum(T_empirical)
 
-        # p = torch.zeros(1, batch_size, dtype=d_OT.dtype, device=d_OT.device).fill_(1. / batch_size)
-        # q = torch.zeros(1, num_classes, dtype=d_OT.dtype, device=d_OT.device).fill_(1. / num_classes)
+        p = torch.zeros(1, batch_size, dtype=d_OT.dtype, device=d_OT.device).fill_(1. / batch_size)
+        q = torch.zeros(1, num_classes, dtype=d_OT.dtype, device=d_OT.device).fill_(1. / num_classes)
         # T_opt = self.sinkhorn_solver(p, q, d_OT)[0] # half
 
         reg_kl = (float("inf"), 0.1)
