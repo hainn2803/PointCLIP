@@ -4,7 +4,7 @@
 #SBATCH --output=/lustre/scratch/client/movian/research/users/hainn14/PointCLIP/slurm_%A.log
 #SBATCH --error=/lustre/scratch/client/movian/research/users/hainn14/PointCLIP/slurm_%A.err
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:2
+#SBATCH --gres=gpu:1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=16
 #SBATCH --mem-per-gpu=50GB
