@@ -20,14 +20,14 @@ LOGIT_SCALE=on # on off
 # Shot number
 NUM_SHOTS=16
 
-export CUDA_VISIBLE_DEVICES=0,1,2,4,5
+export CUDA_VISIBLE_DEVICES=5
 python train.py \
 --root ${DATA} \
 --trainer ${TRAINER} \
 --num-shots ${NUM_SHOTS} \
 --dataset-config-file configs/datasets/${DATASET}.yaml \
 --config-file configs/trainers/${TRAINER}/${CFG}.yaml \
---output-dir output2/PROMPT_LR_0.01/ADAPTER_LR_0.01/NUM_SHOTS_${NUM_SHOTS}/NUM_PROMPTS_${NUM_PROMPTS}/PLOT_learnable_prompt_logit_scale_${LOGIT_SCALE}/${TRAINER}/${CFG}/${DATASET} \
+--output-dir output4/PROMPT_LR_0.08/ADAPTER_LR_0.01/NUM_SHOTS_${NUM_SHOTS}/NUM_PROMPTS_${NUM_PROMPTS}/PLOT_learnable_prompt_logit_scale_${LOGIT_SCALE}/${TRAINER}/${CFG}/${DATASET} \
 --num-prompts ${NUM_PROMPTS} \
 --logit-scale ${LOGIT_SCALE} \
 --post-search
