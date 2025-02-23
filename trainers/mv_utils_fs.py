@@ -269,7 +269,7 @@ class PCViews:
                 [[0, -np.pi / 2, np.pi / 2], [0, 0, TRANS]],
                 [[0, np.pi / 2, np.pi / 2], [0, 0, TRANS]]])
 
-        self.num_views = 10
+        self.num_views = 16
 
         _VIEWS = generate_views(num_views=self.num_views, trans=TRANS)
 
