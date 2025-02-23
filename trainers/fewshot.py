@@ -487,14 +487,12 @@ class PointCLIP_FS(TrainerX):
         T_opt = ot.unbalanced.sinkhorn_stabilized_unbalanced(a=p.float(), b=q.float(), reg=reg, reg_m=reg_kl, M=d_OT.float(), numItermax=10000, method="sinkhorn_stabilized")
         # print(f"Cac {torch.sum(T_opt), T_opt.shape}")
 
-        # print(torch.sum(T_opt))
         loss = torch.sum(-(T_empirical) * torch.log(T_opt + 1e-4))
-        # print(loss)
         self.model_backward_and_update(loss)
 
         loss_summary = {
             'loss': loss.item(),
-            'acc': compute_accuracy(-d_OT, label)[0].item()
+            'acc': compute_accuracy(-T_opt, label)[0].item()
         }
 
         if (self.batch_idx + 1) == self.num_batches:
@@ -504,7 +502,18 @@ class PointCLIP_FS(TrainerX):
 
     def model_inference(self, image, label):
         d_OT = self.model(image)
-        return -d_OT
+        d_OT = d_OT.float() / d_OT.max()
+
+        batch_size = d_OT.shape[0]
+        num_classes = d_OT.shape[1]
+        p = torch.zeros(1, batch_size, dtype=d_OT.dtype, device=d_OT.device).fill_(1. / batch_size)
+        q = torch.zeros(1, num_classes, dtype=d_OT.dtype, device=d_OT.device).fill_(1. / num_classes)
+
+        reg_kl = (float("inf"), 0.001)
+        reg = 0.01
+        T_opt = ot.unbalanced.sinkhorn_stabilized_unbalanced(a=p.float(), b=q.float(), reg=reg, reg_m=reg_kl, M=d_OT.float(), numItermax=10000, method="sinkhorn_stabilized")
+
+        return -T_opt
 
     def parse_batch_train(self, batch):
         input = batch['img']
