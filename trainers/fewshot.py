@@ -478,14 +478,14 @@ class PointCLIP_FS(TrainerX):
         T_empirical = torch.zeros(batch_size, num_classes).to(self.device).scatter(1, label.view(-1, 1), 1) # float
         T_empirical = T_empirical / torch.sum(T_empirical)
 
-        p = torch.zeros(1, batch_size, dtype=d_OT.dtype, device=d_OT.device).fill_(1. / batch_size)
-        q = torch.zeros(1, num_classes, dtype=d_OT.dtype, device=d_OT.device).fill_(1. / num_classes)
-        T_opt = self.sinkhorn_solver(p, q, d_OT)[0] # half
+        # p = torch.zeros(1, batch_size, dtype=d_OT.dtype, device=d_OT.device).fill_(1. / batch_size)
+        # q = torch.zeros(1, num_classes, dtype=d_OT.dtype, device=d_OT.device).fill_(1. / num_classes)
+        # T_opt = self.sinkhorn_solver(p, q, d_OT)[0] # half
 
-        # reg_kl = (float("inf"), 0.01)
-        # reg = 0.01
-        # T_opt = ot.unbalanced.sinkhorn_stabilized_unbalanced(a=p.float(), b=q.float(), reg=reg, reg_m=reg_kl, M=d_OT.float(), numItermax=10000, method="sinkhorn_stabilized")
-        print(f"Cac {torch.sum(T_opt), T_opt.shape}")
+        reg_kl = (float("inf"), 0.1)
+        reg = 0.01
+        T_opt = ot.unbalanced.sinkhorn_stabilized_unbalanced(a=p.float(), b=q.float(), reg=reg, reg_m=reg_kl, M=d_OT.float(), numItermax=10000, method="sinkhorn_stabilized")
+        # print(f"Cac {torch.sum(T_opt), T_opt.shape}")
 
         # print(torch.sum(T_opt))
         loss = torch.sum(-(T_empirical) * torch.log(T_opt + 1e-4))
