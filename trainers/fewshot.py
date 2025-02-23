@@ -482,7 +482,7 @@ class PointCLIP_FS(TrainerX):
         q = torch.zeros(1, num_classes, dtype=d_OT.dtype, device=d_OT.device).fill_(1. / num_classes)
         # T_opt = self.sinkhorn_solver(p, q, d_OT)[0] # half
 
-        reg_kl = (float("inf"), 1.0)
+        reg_kl = (float("inf"), 10.0)
         reg = 0.01
         T_opt = ot.unbalanced.sinkhorn_stabilized_unbalanced(a=p.float(), b=q.float(), reg=reg, reg_m=reg_kl, M=d_OT.float(), numItermax=10000, method="sinkhorn_stabilized")
         # print(f"Cac {torch.sum(T_opt), T_opt.shape}")
